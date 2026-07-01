@@ -14,6 +14,7 @@ from fastmcp import FastMCP
 from .ai_tools import register_ai_tools
 from .client import PterodactylClient, PterodactylConfig
 from .client_ai_tools import register_client_ai_tools
+from .file_ai_tools import register_file_ai_tools
 from .prompts import register_prompts
 from .resources import register_resources
 from .routes import APPLICATION_ROUTES, CLIENT_ROUTES
@@ -238,6 +239,7 @@ _register_route_tools(
 )
 register_ai_tools(mcp, _client)
 register_client_ai_tools(mcp, _client_api)
+register_file_ai_tools(mcp, _client_api)
 register_prompts(mcp)
 register_resources(mcp, _client)
 

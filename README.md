@@ -113,6 +113,23 @@ Client API:
 - `ptero_client_server_status(server)` — compact `current_state` + cpu/memory/disk/uptime
 - `ptero_client_list_servers()` — compact list of servers this client key can access
 
+Bulk file management (Client API):
+
+- `ptero_client_upload_dir(server, local_dir, remote_dir="/", include=None, exclude=None, recursive=True, dry_run=False)`
+  — upload every file under a local folder to a server directory. Filter with `include`/`exclude`
+  glob lists (e.g. `include=["*.yml","config/*"]`, `exclude=["*.log","node_modules/*"]`): a file is
+  uploaded when it matches any include (or include is empty) **and** no exclude. Globs match both the
+  path relative to `local_dir` and the bare filename; `*` spans directories. Wings creates missing
+  parent folders. Use `dry_run=True` to preview.
+- `ptero_client_delete_files(server, remote_dir="/", include=None, exclude=None, recursive=True, dry_run=True)`
+  — bulk-delete server files matching the same glob filters. Defaults to `dry_run=True` since deletion
+  is irreversible; review the matched list, then re-run with `dry_run=False`.
+- `ptero_client_download_dir(server, local_dir, remote_dir="/", include=None, exclude=None, recursive=True, dry_run=False)`
+  — the inverse of upload: pull matching server files down into a local folder.
+
+Guard rails on the bulk tools (all overridable): `max_files=500`, `max_file_bytes=25 MiB`,
+`max_total_bytes=250 MiB`. Anything over a limit is reported under `skipped` rather than transferred.
+
 ## References
 
 - FastMCP Quickstart: https://gofastmcp.com/getting-started/quickstart

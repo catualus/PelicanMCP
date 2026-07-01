@@ -100,3 +100,48 @@ class PterodactylClient:
 
         return payload
 
+    def send_raw(
+        self,
+        method: str,
+        path: str,
+        *,
+        query: dict[str, Any] | None = None,
+        content: bytes | str,
+        content_type: str = "text/plain",
+    ) -> Any:
+        """Send a request whose body is raw (non-JSON) content.
+
+        Needed for endpoints like ``files/write`` that expect the literal file
+        content as the request body rather than a JSON envelope.
+        """
+        resp = self._http.request(
+            method,
+            path,
+            params=query,
+            content=content,
+            headers={"Content-Type": content_type},
+        )
+        if resp.status_code == 204:
+            return {"status": 204}
+
+        try:
+            payload: Any = resp.json()
+        except Exception:
+            payload = resp.text
+
+        if resp.status_code >= 400:
+            raise RuntimeError(f"Pterodactyl API error {resp.status_code}: {payload}")
+
+        return payload
+
+    def fetch_bytes(self, path: str, *, query: dict[str, Any] | None = None) -> bytes:
+        """GET a path and return the raw response bytes (for file downloads)."""
+        resp = self._http.request("GET", path, params=query)
+        if resp.status_code >= 400:
+            try:
+                payload: Any = resp.json()
+            except Exception:
+                payload = resp.text
+            raise RuntimeError(f"Pterodactyl API error {resp.status_code}: {payload}")
+        return resp.content
+

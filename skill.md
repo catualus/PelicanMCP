@@ -44,11 +44,12 @@ set as `PANEL_TOKEN`, it is reused for the client tools automatically (back-comp
 
 ## Capabilities
 
-- **Tools (113)** — one per Application **and** Client API route plus AI-friendly helpers and per-API raw-request escape hatches.
+- **Tools (117)** — one per Application **and** Client API route plus AI-friendly helpers and per-API raw-request escape hatches.
   - Application groups (`ptero_app_*`): Users, Servers, Nodes, Locations, Nests/Eggs, Server Databases.
   - Client groups (`ptero_client_*`): power, console command, resources/status, files, backups, schedules, startup, network, subusers.
   - AI helpers — Application (`ptero_ai_*`): fuzzy search, compact list, summary, panel totals.
   - AI helpers — Client (`ptero_client_power`, `ptero_client_send_command`, `ptero_client_console_tail`, `ptero_client_server_status`, `ptero_client_list_servers`).
+  - Bulk files — Client (`ptero_client_upload_dir`, `ptero_client_download_dir`, `ptero_client_delete_files`): move whole folders to/from a server with `include`/`exclude` glob filters; support `dry_run` (delete defaults to it). Guarded by `max_files`/`max_file_bytes`/`max_total_bytes`.
   - Note: `ptero_client_send_command` returns `204` with no console output; read output back with `ptero_client_console_tail` (opens the console websocket). The `{server}` arg is the short identifier (e.g. `95415e3b`).
 - **Prompts (2)**
   - `troubleshoot_server` — guided diagnostic walkthrough for a server.
