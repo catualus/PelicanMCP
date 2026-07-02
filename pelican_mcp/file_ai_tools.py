@@ -8,7 +8,7 @@ from typing import Any
 
 from fastmcp import FastMCP
 
-from .client import PterodactylClient
+from .client import PelicanClient
 
 # Safety rails so a stray glob can't try to move gigabytes or thousands of files
 # in a single tool call. All are overridable per call.
@@ -18,22 +18,22 @@ _DEFAULT_MAX_TOTAL_BYTES = 250 * 1024 * 1024  # 250 MiB per call
 _MAX_REMOTE_DEPTH = 25  # guard against symlink loops when walking remote dirs
 
 
-def register_file_ai_tools(mcp: FastMCP, client_factory: Callable[[], PterodactylClient]) -> None:
+def register_file_ai_tools(mcp: FastMCP, client_factory: Callable[[], PelicanClient]) -> None:
     @mcp.tool(
         description=(
             "Bulk-upload every file under a local folder to a server directory. "
-            "`server` is the short identifier; `local_dir` is a path on THIS machine; "
+            "`server` is the full server UUID; `local_dir` is a path on THIS machine; "
             "`remote_dir` is the destination on the server (default '/'). "
             "Filter with `include`/`exclude` glob lists (e.g. include=['*.yml','config/*'], "
             "exclude=['*.log','node_modules/*']): a file is uploaded when it matches any "
             "include (or include is empty) AND no exclude. Globs are matched against both "
             "the path relative to `local_dir` (posix '/') and the bare filename; '*' spans "
             "directories. `recursive` walks sub-folders (default True). Set `dry_run` True "
-            "to preview the plan without uploading. Wings creates missing parent folders. "
+            "to preview the plan without uploading. The daemon creates missing parent folders. "
             "Returns per-file results plus counts."
         )
     )
-    def ptero_client_upload_dir(
+    def pelican_client_upload_dir(
         server: str,
         local_dir: str,
         remote_dir: str = "/",
@@ -62,14 +62,14 @@ def register_file_ai_tools(mcp: FastMCP, client_factory: Callable[[], Pterodacty
     @mcp.tool(
         description=(
             "Bulk-delete files/folders on a server that match glob filters. `server` is the "
-            "short identifier; `remote_dir` is the directory to scan (default '/'). Same "
-            "include/exclude semantics as ptero_client_upload_dir. `recursive` descends into "
+            "full server UUID; `remote_dir` is the directory to scan (default '/'). Same "
+            "include/exclude semantics as pelican_client_upload_dir. `recursive` descends into "
             "sub-folders (default True). ALWAYS run with `dry_run` True first to review what "
             "would be removed — deletion is irreversible. Returns the matched paths and, when "
             "not a dry run, the delete result."
         )
     )
-    def ptero_client_delete_files(
+    def pelican_client_delete_files(
         server: str,
         remote_dir: str = "/",
         include: list[str] | None = None,
@@ -92,14 +92,14 @@ def register_file_ai_tools(mcp: FastMCP, client_factory: Callable[[], Pterodacty
     @mcp.tool(
         description=(
             "Bulk-download files from a server directory to a local folder, filtered by globs. "
-            "`server` is the short identifier; `remote_dir` is the source on the server "
+            "`server` is the full server UUID; `remote_dir` is the source on the server "
             "(default '/'); `local_dir` is the destination on THIS machine (created if needed). "
-            "Same include/exclude semantics as ptero_client_upload_dir. `recursive` walks "
+            "Same include/exclude semantics as pelican_client_upload_dir. `recursive` walks "
             "sub-folders (default True). Set `dry_run` True to preview. Returns per-file results "
             "plus counts."
         )
     )
-    def ptero_client_download_dir(
+    def pelican_client_download_dir(
         server: str,
         local_dir: str,
         remote_dir: str = "/",
@@ -176,7 +176,7 @@ def _join_remote(remote_dir: str, rel_path: str) -> str:
 # --------------------------------------------------------------------------- #
 
 def upload_dir(
-    client: PterodactylClient,
+    client: PelicanClient,
     server: str,
     *,
     local_dir: str,
@@ -263,7 +263,7 @@ def upload_dir(
 # Remote walk (shared by delete + download)
 # --------------------------------------------------------------------------- #
 
-def _list_remote(client: PterodactylClient, server: str, directory: str) -> list[dict[str, Any]]:
+def _list_remote(client: PelicanClient, server: str, directory: str) -> list[dict[str, Any]]:
     payload = client.request(
         "GET",
         f"/api/client/servers/{server}/files/list",
@@ -280,7 +280,7 @@ def _list_remote(client: PterodactylClient, server: str, directory: str) -> list
 
 
 def _walk_remote(
-    client: PterodactylClient,
+    client: PelicanClient,
     server: str,
     remote_dir: str,
     *,
@@ -319,7 +319,7 @@ def _walk_remote(
 # --------------------------------------------------------------------------- #
 
 def delete_files(
-    client: PterodactylClient,
+    client: PelicanClient,
     server: str,
     *,
     remote_dir: str = "/",
@@ -358,7 +358,7 @@ def delete_files(
 # --------------------------------------------------------------------------- #
 
 def download_dir(
-    client: PterodactylClient,
+    client: PelicanClient,
     server: str,
     *,
     local_dir: str,

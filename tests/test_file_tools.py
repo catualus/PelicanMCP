@@ -1,6 +1,6 @@
 import asyncio
 
-from pterodactyl_mcp.file_ai_tools import (
+from pelican_mcp.file_ai_tools import (
     _join_remote,
     _matches_any,
     _norm_remote_dir,
@@ -9,7 +9,7 @@ from pterodactyl_mcp.file_ai_tools import (
     download_dir,
     upload_dir,
 )
-from pterodactyl_mcp.server import mcp
+from pelican_mcp.server import mcp
 
 
 class FakeClient:
@@ -133,7 +133,7 @@ def test_upload_dir_max_file_bytes_skips(tmp_path):
     _make_local_tree(tmp_path)
     client = FakeClient()
     result = upload_dir(client, "abc123", local_dir=str(tmp_path), max_file_bytes=3)
-    # "root"/"db" are >3? "root"=4 bytes, "db"=2, "noise"=5 → only db.yml fits
+    # "root"=4 bytes, "db"=2, "noise"=5 → only db.yml fits
     uploaded = [u["remote"] for u in result["uploaded"]]
     assert "/config/db.yml" in uploaded
     assert any("exceeds max_file_bytes" in s["reason"] for s in result["skipped"])
@@ -197,6 +197,6 @@ def test_download_dir(tmp_path):
 def test_server_registers_file_tools():
     tools = asyncio.run(mcp.list_tools())
     names = {t.name for t in tools}
-    assert "ptero_client_upload_dir" in names
-    assert "ptero_client_delete_files" in names
-    assert "ptero_client_download_dir" in names
+    assert "pelican_client_upload_dir" in names
+    assert "pelican_client_delete_files" in names
+    assert "pelican_client_download_dir" in names

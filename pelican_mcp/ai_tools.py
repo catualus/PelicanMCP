@@ -7,12 +7,12 @@ from typing import Any
 
 from fastmcp import FastMCP
 
-from .client import PterodactylClient
+from .client import PelicanClient
 
 
-def register_ai_tools(mcp: FastMCP, client_factory: Callable[[], PterodactylClient]) -> None:
+def register_ai_tools(mcp: FastMCP, client_factory: Callable[[], PelicanClient]) -> None:
     @mcp.tool(description="Fuzzy search users by username/email/name/external_id/uuid; returns compact top matches.")
-    def ptero_ai_search_users(
+    def pelican_ai_search_users(
         query: str,
         limit: int = 10,
         max_pages: int = 5,
@@ -31,7 +31,7 @@ def register_ai_tools(mcp: FastMCP, client_factory: Callable[[], PterodactylClie
         )
 
     @mcp.tool(description="Fuzzy search servers by name/identifier/uuid/external_id; returns compact top matches.")
-    def ptero_ai_search_servers(
+    def pelican_ai_search_servers(
         query: str,
         limit: int = 10,
         max_pages: int = 5,
@@ -50,47 +50,58 @@ def register_ai_tools(mcp: FastMCP, client_factory: Callable[[], PterodactylClie
         )
 
     @mcp.tool(description="List users (compact) with safe defaults to avoid huge responses.")
-    def ptero_ai_list_users(page: int = 1, per_page: int = 10) -> dict[str, Any]:
+    def pelican_ai_list_users(page: int = 1, per_page: int = 10) -> dict[str, Any]:
         return _compact_list(client_factory(), "/api/application/users", page=page, per_page=per_page, kind="user")
 
     @mcp.tool(description="List servers (compact) with safe defaults to avoid huge responses.")
-    def ptero_ai_list_servers(page: int = 1, per_page: int = 10) -> dict[str, Any]:
+    def pelican_ai_list_servers(page: int = 1, per_page: int = 10) -> dict[str, Any]:
         return _compact_list(
             client_factory(), "/api/application/servers", page=page, per_page=per_page, kind="server"
         )
 
+    @mcp.tool(
+        description=(
+            "List eggs (compact). In Pelican eggs are top-level (there are no nests), so this "
+            "is the quick way to discover egg ids for provisioning servers."
+        )
+    )
+    def pelican_ai_list_eggs(page: int = 1, per_page: int = 50) -> dict[str, Any]:
+        return _compact_list(client_factory(), "/api/application/eggs", page=page, per_page=per_page, kind="egg")
+
     @mcp.tool(description="Get a compact user summary (token-efficient).")
-    def ptero_ai_get_user_summary(user: str | int) -> dict[str, Any]:
+    def pelican_ai_get_user_summary(user: str | int) -> dict[str, Any]:
         payload = client_factory().request("GET", f"/api/application/users/{user}")
         attributes = _extract_attributes(payload)
         return _compact_user(attributes)
 
     @mcp.tool(description="Get a compact server summary (token-efficient).")
-    def ptero_ai_get_server_summary(server: str | int) -> dict[str, Any]:
+    def pelican_ai_get_server_summary(server: str | int) -> dict[str, Any]:
         return get_server_summary(client_factory(), server)
 
     @mcp.tool(description="Return counts (totals) for common Application API resources (token-efficient).")
-    def ptero_ai_panel_totals() -> dict[str, int]:
+    def pelican_ai_panel_totals() -> dict[str, int]:
         return get_panel_totals(client_factory())
 
 
-def get_panel_totals(client: PterodactylClient) -> dict[str, int]:
+def get_panel_totals(client: PelicanClient) -> dict[str, int]:
+    # Pelican removed locations and nests; eggs and roles are the meaningful admin
+    # collections to surface instead.
     return {
         "users": _get_total(client, "/api/application/users"),
         "servers": _get_total(client, "/api/application/servers"),
         "nodes": _get_total(client, "/api/application/nodes"),
-        "locations": _get_total(client, "/api/application/locations"),
-        "nests": _get_total(client, "/api/application/nests"),
+        "eggs": _get_total(client, "/api/application/eggs"),
+        "roles": _get_total(client, "/api/application/roles"),
     }
 
 
-def get_server_summary(client: PterodactylClient, server: str | int) -> dict[str, Any]:
+def get_server_summary(client: PelicanClient, server: str | int) -> dict[str, Any]:
     payload = client.request("GET", f"/api/application/servers/{server}")
     attributes = _extract_attributes(payload)
     return _compact_server(attributes)
 
 
-def get_user_summary(client: PterodactylClient, user: str | int) -> dict[str, Any]:
+def get_user_summary(client: PelicanClient, user: str | int) -> dict[str, Any]:
     payload = client.request("GET", f"/api/application/users/{user}")
     attributes = _extract_attributes(payload)
     return _compact_user(attributes)
@@ -203,7 +214,7 @@ def _extract_pagination(payload: Any) -> dict[str, Any]:
     return pagination
 
 
-def _get_total(client: PterodactylClient, path: str) -> int:
+def _get_total(client: PelicanClient, path: str) -> int:
     payload = client.request("GET", path, query={"page": 1, "per_page": 1})
     pagination = _extract_pagination(payload)
     total = pagination.get("total")
@@ -211,7 +222,7 @@ def _get_total(client: PterodactylClient, path: str) -> int:
 
 
 def _iter_paginated(
-    client: PterodactylClient,
+    client: PelicanClient,
     path: str,
     *,
     per_page: int,
@@ -272,8 +283,22 @@ def _compact_server(attributes: dict[str, Any], *, score: float | None = None, m
     return _strip_nones(out)
 
 
+def _compact_egg(attributes: dict[str, Any], *, score: float | None = None, matched_on: str | None = None) -> dict[str, Any]:
+    out: dict[str, Any] = {
+        "score": round(score, 1) if score is not None else None,
+        "matched_on": matched_on,
+        "id": attributes.get("id"),
+        "uuid": attributes.get("uuid"),
+        "name": attributes.get("name"),
+        "author": attributes.get("author"),
+        "description": _truncate(attributes.get("description"), 120) if isinstance(attributes.get("description"), str) else None,
+        "docker_image": attributes.get("docker_image"),
+    }
+    return _strip_nones(out)
+
+
 def _fuzzy_search(
-    client: PterodactylClient,
+    client: PelicanClient,
     path: str,
     *,
     query: str,
@@ -386,7 +411,7 @@ def _fuzzy_search(
     )
 
 
-def _compact_list(client: PterodactylClient, path: str, *, page: int, per_page: int, kind: str) -> dict[str, Any]:
+def _compact_list(client: PelicanClient, path: str, *, page: int, per_page: int, kind: str) -> dict[str, Any]:
     per_page = max(1, min(int(per_page), 100))
     page = max(1, int(page))
 
@@ -397,6 +422,9 @@ def _compact_list(client: PterodactylClient, path: str, *, page: int, per_page: 
     if kind == "user":
         compact_items = [_compact_user(item) for item in items]
         key = "users"
+    elif kind == "egg":
+        compact_items = [_compact_egg(item) for item in items]
+        key = "eggs"
     else:
         compact_items = [_compact_server(item) for item in items]
         key = "servers"
@@ -413,4 +441,3 @@ def _compact_list(client: PterodactylClient, path: str, *, page: int, per_page: 
         ),
     }
     return _strip_nones(out)
-

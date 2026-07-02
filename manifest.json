@@ -1,33 +1,33 @@
 {
   "dxt_version": "0.1",
-  "name": "pterodactyl-mcp",
-  "display_name": "Pterodactyl MCP",
+  "name": "pelican-mcp",
+  "display_name": "Pelican MCP",
   "version": "0.1.0",
-  "description": "MCP server for the Pterodactyl Panel Application and Client APIs (admin + live server control).",
-  "long_description": "Manage Pterodactyl users, servers, nodes, locations, nests, eggs, and server databases (Application API), and control running servers with power signals, console commands, status, files, and backups (Client API). Includes 113 tools, 2 workflow prompts, and 2 resources covering both API trees.",
+  "description": "MCP server for the Pelican Panel Application and Client APIs (admin + live server control).",
+  "long_description": "Manage Pelican users, servers, nodes, eggs, roles, plugins, mounts, database hosts, and server databases (Application API), and control running servers with power signals, console commands, status, files, and backups (Client API). Includes 165 tools, 2 workflow prompts, and 2 resources covering both API trees. Targets Pelican Panel (https://pelican.dev), a fork of Pterodactyl.",
   "author": {
-    "name": "PixlFlip Enterprises",
-    "url": "https://github.com/PixlFlip-Enterprises/PterodactylMCP"
+    "name": "catualus",
+    "url": "https://github.com/catualus/PelicanMCP"
   },
-  "homepage": "https://github.com/PixlFlip-Enterprises/PterodactylMCP",
+  "homepage": "https://github.com/catualus/PelicanMCP",
   "repository": {
     "type": "git",
-    "url": "https://github.com/PixlFlip-Enterprises/PterodactylMCP"
+    "url": "https://github.com/catualus/PelicanMCP"
   },
   "license": "MIT",
-  "keywords": ["pterodactyl", "mcp", "panel", "game-server"],
+  "keywords": ["pelican", "pelican-panel", "mcp", "panel", "game-server"],
   "server": {
     "type": "python",
-    "entry_point": "pterodactyl_mcp/__main__.py",
+    "entry_point": "pelican_mcp/__main__.py",
     "mcp_config": {
       "command": "python",
-      "args": ["-m", "pterodactyl_mcp", "--transport", "stdio", "--no-banner"],
+      "args": ["-m", "pelican_mcp", "--transport", "stdio", "--no-banner"],
       "env": {
-        "PANEL_URL": "${user_config.panel_url}",
-        "PANEL_TOKEN": "${user_config.panel_token}",
-        "PANEL_CLIENT_TOKEN": "${user_config.panel_client_token}",
-        "PANEL_TIMEOUT": "${user_config.panel_timeout}",
-        "PANEL_VERIFY_SSL": "${user_config.panel_verify_ssl}"
+        "PELICAN_URL": "${user_config.panel_url}",
+        "PELICAN_TOKEN": "${user_config.panel_token}",
+        "PELICAN_CLIENT_TOKEN": "${user_config.panel_client_token}",
+        "PELICAN_TIMEOUT": "${user_config.panel_timeout}",
+        "PELICAN_VERIFY_SSL": "${user_config.panel_verify_ssl}"
       }
     }
   },
@@ -35,20 +35,20 @@
     "panel_url": {
       "type": "string",
       "title": "Panel URL",
-      "description": "Base URL of your Pterodactyl panel (no trailing slash).",
+      "description": "Base URL of your Pelican panel (no trailing slash).",
       "required": true
     },
     "panel_token": {
       "type": "string",
       "title": "Application API Key",
-      "description": "Pterodactyl Application API key (usually starts with 'ptla_'). Backs the admin ptero_app_* / ptero_ai_* tools. Optional if a Client API key is provided.",
+      "description": "Pelican Application API key (usually starts with 'papp_'). Backs the admin pelican_app_* / pelican_ai_* tools. Optional if a Client API key is provided.",
       "sensitive": true,
       "required": false
     },
     "panel_client_token": {
       "type": "string",
-      "title": "Client API Key",
-      "description": "Pterodactyl Client API key (usually starts with 'ptlc_'). Backs the ptero_client_* tools (power, console command, status, files, backups). Optional if an Application API key is provided. At least one key is required.",
+      "title": "Client (Account) API Key",
+      "description": "Pelican Account API key (usually starts with 'pacc_'). Backs the pelican_client_* tools (power, console command, status, files, backups). Optional if an Application API key is provided. At least one key is required.",
       "sensitive": true,
       "required": false
     },

@@ -9,7 +9,7 @@ from urllib.parse import urlsplit
 
 from fastmcp import FastMCP
 
-from .client import PterodactylClient
+from .client import PelicanClient
 
 PowerSignal = Literal["start", "stop", "restart", "kill"]
 
@@ -17,26 +17,27 @@ _ANSI_RE = re.compile(r"\x1b\[[0-9;]*m")
 _MAX_TAIL_SECONDS = 60.0
 
 
-def register_client_ai_tools(mcp: FastMCP, client_factory: Callable[[], PterodactylClient]) -> None:
+def register_client_ai_tools(mcp: FastMCP, client_factory: Callable[[], PelicanClient]) -> None:
     @mcp.tool(
         description=(
             "Send a power signal to a server (start/stop/restart/kill). `server` is the "
-            "short identifier (e.g. '95415e3b'). Returns {\"status\": 204} on success."
+            "full server UUID (36 chars, from the 'uuid' field — not the short identifier). "
+            "Returns {\"status\": 204} on success."
         )
     )
-    def ptero_client_power(server: str, signal: PowerSignal) -> Any:
+    def pelican_client_power(server: str, signal: PowerSignal) -> Any:
         return client_factory().request(
             "POST", f"/api/client/servers/{server}/power", body={"signal": signal}
         )
 
     @mcp.tool(
         description=(
-            "Send a console command to a running server. `server` is the short identifier. "
-            "Returns {\"status\": 204} on success — Pterodactyl does NOT return console "
-            "output from this endpoint (read output via your console/websocket tooling)."
+            "Send a console command to a running server. `server` is the full server UUID. "
+            "Returns {\"status\": 204} on success — Pelican does NOT return console output "
+            "from this endpoint. Read output back with pelican_client_console_tail."
         )
     )
-    def ptero_client_send_command(server: str, command: str) -> Any:
+    def pelican_client_send_command(server: str, command: str) -> Any:
         return client_factory().request(
             "POST", f"/api/client/servers/{server}/command", body={"command": command}
         )
@@ -44,37 +45,38 @@ def register_client_ai_tools(mcp: FastMCP, client_factory: Callable[[], Pterodac
     @mcp.tool(
         description=(
             "Get a compact server status: current_state plus cpu/memory/disk/network/uptime "
-            "(token-efficient view of GET .../resources). `server` is the short identifier."
+            "(token-efficient view of GET .../resources). `server` is the full server UUID."
         )
     )
-    def ptero_client_server_status(server: str) -> dict[str, Any]:
+    def pelican_client_server_status(server: str) -> dict[str, Any]:
         return get_server_status(client_factory(), server)
 
     @mcp.tool(
         description=(
-            "List servers this Client API key can access (compact: identifier, name, node, "
-            "current_state when present). Backed by GET /api/client."
+            "List servers this Account API key can access (compact: uuid, identifier, name, "
+            "node, status). Use the `uuid` value for the other pelican_client_* tools. "
+            "Backed by GET /api/client."
         )
     )
-    def ptero_client_list_servers() -> dict[str, Any]:
+    def pelican_client_list_servers() -> dict[str, Any]:
         return list_client_servers(client_factory())
 
     @mcp.tool(
         description=(
-            "Read recent console output from a server. Opens the Pterodactyl console "
-            "websocket (the same source as the panel's console tab), requests the log "
-            "backlog, and collects output for `seconds`. Use this to confirm a command "
-            "sent via ptero_client_send_command actually ran, or to inspect boot/errors. "
-            "`server` is the short identifier. Returns the last `lines` de-ANSI'd lines."
+            "Read recent console output from a server. Opens the Pelican console websocket "
+            "(the same source as the panel's console tab), requests the log backlog, and "
+            "collects output for `seconds`. Use this to confirm a command sent via "
+            "pelican_client_send_command actually ran, or to inspect boot/errors. `server` is "
+            "the full server UUID. Returns the last `lines` de-ANSI'd lines."
         )
     )
-    async def ptero_client_console_tail(
+    async def pelican_client_console_tail(
         server: str, seconds: float = 8.0, lines: int = 80
     ) -> dict[str, Any]:
         return await read_console(client_factory(), server, seconds=seconds, lines=lines)
 
 
-def get_server_status(client: PterodactylClient, server: str) -> dict[str, Any]:
+def get_server_status(client: PelicanClient, server: str) -> dict[str, Any]:
     payload = client.request("GET", f"/api/client/servers/{server}/resources")
     attributes = payload.get("attributes") if isinstance(payload, dict) else None
     if not isinstance(attributes, dict):
@@ -97,19 +99,20 @@ def get_server_status(client: PterodactylClient, server: str) -> dict[str, Any]:
 
 
 async def read_console(
-    client: PterodactylClient, server: str, *, seconds: float = 8.0, lines: int = 80
+    client: PelicanClient, server: str, *, seconds: float = 8.0, lines: int = 80
 ) -> dict[str, Any]:
-    """Connect to the Pterodactyl console websocket and collect recent output.
+    """Connect to the Pelican console websocket and collect recent output.
 
-    Flow mirrors the panel console: fetch a one-time JWT + wings socket URL, send the
+    Flow mirrors the panel console: fetch a one-time JWT + daemon socket URL, send the
     ``auth`` event, request the log backlog with ``send logs``, then drain ``console
-    output`` events until ``seconds`` elapses. ANSI colour codes are stripped.
+    output`` events until ``seconds`` elapses. ANSI colour codes are stripped. Pelican's
+    daemon (pelican-dev/wings) uses the same websocket event names as Pterodactyl's.
     """
     try:
         import websockets
     except ImportError as exc:  # pragma: no cover - dependency is declared
         raise RuntimeError(
-            "ptero_client_console_tail requires the 'websockets' package "
+            "pelican_client_console_tail requires the 'websockets' package "
             "(pip install websockets)"
         ) from exc
 
@@ -123,7 +126,7 @@ async def read_console(
     if not token or not socket:
         raise RuntimeError(f"Websocket endpoint returned no token/socket: {creds}")
 
-    # Wings validates the Origin against the panel's allowed origins (the panel URL).
+    # The daemon validates the Origin against the panel's allowed origins (the panel URL).
     split = urlsplit(client.base_url)
     origin = f"{split.scheme}://{split.netloc}"
 
@@ -165,7 +168,7 @@ async def read_console(
     return {"lines": tail, "line_count": len(tail), "total_captured": len(collected)}
 
 
-def list_client_servers(client: PterodactylClient) -> dict[str, Any]:
+def list_client_servers(client: PelicanClient) -> dict[str, Any]:
     payload = client.request("GET", "/api/client")
     data = payload.get("data") if isinstance(payload, dict) else None
     items: list[dict[str, Any]] = []
@@ -174,8 +177,8 @@ def list_client_servers(client: PterodactylClient) -> dict[str, Any]:
             attrs = entry.get("attributes") if isinstance(entry, dict) else None
             attrs = attrs if isinstance(attrs, dict) else (entry if isinstance(entry, dict) else {})
             compact = {
-                "identifier": attrs.get("identifier"),
                 "uuid": attrs.get("uuid"),
+                "identifier": attrs.get("identifier"),
                 "name": attrs.get("name"),
                 "node": attrs.get("node"),
                 "status": attrs.get("status"),

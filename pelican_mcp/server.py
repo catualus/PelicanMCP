@@ -12,7 +12,7 @@ from urllib.parse import quote
 from fastmcp import FastMCP
 
 from .ai_tools import register_ai_tools
-from .client import PterodactylClient, PterodactylConfig
+from .client import PelicanClient, PelicanConfig
 from .client_ai_tools import register_client_ai_tools
 from .file_ai_tools import register_file_ai_tools
 from .prompts import register_prompts
@@ -21,41 +21,41 @@ from .routes import APPLICATION_ROUTES, CLIENT_ROUTES
 
 PathParam = str | int
 
-mcp = FastMCP("Pterodactyl Panel API (Application + Client)")
+mcp = FastMCP("Pelican Panel API (Application + Client)")
 
 
 @lru_cache
-def _client() -> PterodactylClient:
-    """Application API client (ptla_ key). Backs ptero_app_* / ptero_ai_* tools."""
-    config = PterodactylConfig.from_env()
-    if config.panel_token and config.panel_token.startswith("ptlc_"):
+def _client() -> PelicanClient:
+    """Application API client (papp_ key). Backs pelican_app_* / pelican_ai_* tools."""
+    config = PelicanConfig.from_env()
+    if config.panel_token and config.panel_token.startswith("pacc_"):
         raise RuntimeError(
-            "Application API tools require an Application key (ptla_), but PANEL_TOKEN "
-            "looks like a Client key (ptlc_). Set PANEL_TOKEN to a ptla_ key, or use the "
-            "ptero_client_* tools instead."
+            "Application API tools require an Application key (papp_), but the configured "
+            "token looks like an Account/Client key (pacc_). Set PELICAN_TOKEN to a papp_ "
+            "key, or use the pelican_client_* tools instead."
         )
     if not config.panel_token:
-        raise RuntimeError("Application API tools require PANEL_TOKEN (a ptla_ key).")
-    return PterodactylClient(config)
+        raise RuntimeError("Application API tools require PELICAN_TOKEN (a papp_ key).")
+    return PelicanClient(config)
 
 
 @lru_cache
-def _client_api() -> PterodactylClient:
-    """Client API client (ptlc_ key). Backs ptero_client_* tools.
+def _client_api() -> PelicanClient:
+    """Client/Account API client (pacc_ key). Backs pelican_client_* tools.
 
-    Uses PANEL_CLIENT_TOKEN if set; otherwise falls back to PANEL_TOKEN when it looks
-    like a client key (back-compat shim so an existing ptlc_ PANEL_TOKEN just works).
+    Uses PELICAN_CLIENT_TOKEN if set; otherwise falls back to PELICAN_TOKEN when it looks
+    like an account key (back-compat shim so a single pacc_ token just works).
     """
-    config = PterodactylConfig.from_env()
+    config = PelicanConfig.from_env()
     token = config.panel_client_token
-    if not token and config.panel_token and config.panel_token.startswith("ptlc_"):
+    if not token and config.panel_token and config.panel_token.startswith("pacc_"):
         token = config.panel_token
     if not token:
         raise RuntimeError(
-            "Client API tools require PANEL_CLIENT_TOKEN (a ptlc_ key). Set it to a "
-            "Pterodactyl Client API key, or set PANEL_TOKEN to a ptlc_ key."
+            "Client API tools require PELICAN_CLIENT_TOKEN (a pacc_ key). Set it to a "
+            "Pelican Account API key, or set PELICAN_TOKEN to a pacc_ key."
         )
-    return PterodactylClient(config, token=token)
+    return PelicanClient(config, token=token)
 
 
 def _tool_name(
@@ -63,7 +63,7 @@ def _tool_name(
     path: str,
     *,
     prefix: str = "/api/application",
-    name_prefix: str = "ptero_app",
+    name_prefix: str = "pelican_app",
 ) -> str:
     suffix = path.removeprefix(prefix.rstrip("/")).strip("/")
     parts: list[str] = []
@@ -80,7 +80,7 @@ def _tool_name(
 def _register_route_tools(
     routes: list[dict[str, str]],
     *,
-    client_factory: Callable[[], PterodactylClient],
+    client_factory: Callable[[], PelicanClient],
     prefix: str,
     name_prefix: str,
     describe: Callable[[str, str], str] | None = None,
@@ -99,7 +99,7 @@ def _register_route_tools(
             template_path: str = template_path,
             path_params: list[str] = path_params,
             name: str = name,
-            client_factory: Callable[[], PterodactylClient] = client_factory,
+            client_factory: Callable[[], PelicanClient] = client_factory,
         ):
             def _tool(**kwargs: Any) -> Any:
                 resolved_path = template_path
@@ -162,36 +162,42 @@ def _register_route_tools(
 def _describe_application(method: str, template_path: str) -> str:
     description = f"{method} {template_path}"
     if method == "GET" and template_path == "/api/application/users":
-        description += " (raw; can be large — prefer ptero_ai_list_users / ptero_ai_search_users)"
+        description += " (raw; can be large — prefer pelican_ai_list_users / pelican_ai_search_users)"
     elif method == "GET" and template_path == "/api/application/servers":
-        description += " (raw; can be large — prefer ptero_ai_list_servers / ptero_ai_search_servers)"
+        description += " (raw; can be large — prefer pelican_ai_list_servers / pelican_ai_search_servers)"
+    elif method == "GET" and template_path == "/api/application/eggs":
+        description += " (Pelican eggs are top-level — there are no nests — prefer pelican_ai_list_eggs)"
+    elif method == "DELETE" and template_path == "/api/application/servers/{server}/{force}":
+        description += " (force-delete; pass force=true to skip the normal safety checks)"
     return description
 
 
 def _describe_client(method: str, template_path: str) -> str:
     description = f"{method} {template_path}"
     if method == "POST" and template_path == "/api/client/servers/{server}/power":
-        description += " (body {\"signal\": start|stop|restart|kill} — or use ptero_client_power)"
+        description += " (body {\"signal\": start|stop|restart|kill} — or use pelican_client_power)"
     elif method == "POST" and template_path == "/api/client/servers/{server}/command":
-        description += " (body {\"command\": ...}; returns 204 with no output — or use ptero_client_send_command)"
+        description += " (body {\"command\": ...}; returns 204 with no output — or use pelican_client_send_command)"
     elif method == "GET" and template_path == "/api/client/servers/{server}/resources":
-        description += " (current state + cpu/mem/disk — or use ptero_client_server_status)"
+        description += " (current state + cpu/mem/disk — or use pelican_client_server_status)"
+    if "{server}" in template_path:
+        description += " [{server} is the full server UUID]"
     return description
 
 
-@mcp.tool(description="List all Application API endpoints exposed as tools.")
-def ptero_app_list_endpoints() -> list[dict[str, str]]:
+@mcp.tool(description="List all Pelican Application API endpoints exposed as tools.")
+def pelican_app_list_endpoints() -> list[dict[str, str]]:
     return [
         {"tool": _tool_name(r["method"], r["path"]), "method": r["method"], "path": r["path"]}
         for r in APPLICATION_ROUTES
     ]
 
 
-@mcp.tool(description="List all Client API endpoints exposed as tools.")
-def ptero_client_list_endpoints() -> list[dict[str, str]]:
+@mcp.tool(description="List all Pelican Client API endpoints exposed as tools.")
+def pelican_client_list_endpoints() -> list[dict[str, str]]:
     return [
         {
-            "tool": _tool_name(r["method"], r["path"], prefix="/api/client", name_prefix="ptero_client"),
+            "tool": _tool_name(r["method"], r["path"], prefix="/api/client", name_prefix="pelican_client"),
             "method": r["method"],
             "path": r["path"],
         }
@@ -199,8 +205,8 @@ def ptero_client_list_endpoints() -> list[dict[str, str]]:
     ]
 
 
-@mcp.tool(description="Make a raw Application API request (useful for endpoints not mapped as tools yet).")
-def ptero_app_request(
+@mcp.tool(description="Make a raw Pelican Application API request (for endpoints not mapped as tools yet).")
+def pelican_app_request(
     method: Literal["GET", "POST", "PUT", "PATCH", "DELETE"],
     path: str,
     query: dict[str, Any] | None = None,
@@ -211,8 +217,8 @@ def ptero_app_request(
     return _client().request(method, path, query=query, body=body)
 
 
-@mcp.tool(description="Make a raw Client API request (useful for endpoints not mapped as tools yet).")
-def ptero_client_request(
+@mcp.tool(description="Make a raw Pelican Client API request (for endpoints not mapped as tools yet).")
+def pelican_client_request(
     method: Literal["GET", "POST", "PUT", "PATCH", "DELETE"],
     path: str,
     query: dict[str, Any] | None = None,
@@ -227,14 +233,14 @@ _register_route_tools(
     APPLICATION_ROUTES,
     client_factory=_client,
     prefix="/api/application",
-    name_prefix="ptero_app",
+    name_prefix="pelican_app",
     describe=_describe_application,
 )
 _register_route_tools(
     CLIENT_ROUTES,
     client_factory=_client_api,
     prefix="/api/client",
-    name_prefix="ptero_client",
+    name_prefix="pelican_client",
     describe=_describe_client,
 )
 register_ai_tools(mcp, _client)
@@ -245,7 +251,7 @@ register_resources(mcp, _client)
 
 
 def main(argv: list[str] | None = None) -> None:
-    parser = argparse.ArgumentParser(description="Pterodactyl Application API MCP server (FastMCP).")
+    parser = argparse.ArgumentParser(description="Pelican Panel API MCP server (FastMCP).")
     parser.add_argument(
         "--transport",
         choices=["stdio", "sse", "streamable-http", "http"],

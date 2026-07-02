@@ -3,13 +3,13 @@ requires = ["hatchling>=1.21"]
 build-backend = "hatchling.build"
 
 [project]
-name = "pterodactyl-mcp"
-description = "Model Context Protocol (MCP) server for the Pterodactyl Panel Application API, built with FastMCP."
+name = "pelican-mcp"
+description = "Model Context Protocol (MCP) server for the Pelican Panel Application & Client APIs, built with FastMCP."
 readme = "README.md"
 license = { file = "LICENSE" }
 requires-python = ">=3.10"
 authors = [{ name = "PixlFlip Enterprises" }]
-keywords = ["mcp", "model-context-protocol", "pterodactyl", "fastmcp", "game-server", "panel"]
+keywords = ["mcp", "model-context-protocol", "pelican", "pelican-panel", "fastmcp", "game-server", "panel"]
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
@@ -38,22 +38,23 @@ dev = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/PixlFlip-Enterprises/PterodactylMCP"
-Repository = "https://github.com/PixlFlip-Enterprises/PterodactylMCP"
-Issues = "https://github.com/PixlFlip-Enterprises/PterodactylMCP/issues"
+Homepage = "https://github.com/catualus/PelicanMCP"
+Repository = "https://github.com/catualus/PelicanMCP"
+Issues = "https://github.com/catualus/PelicanMCP/issues"
+"Pelican Panel" = "https://pelican.dev"
 
 [project.scripts]
-pterodactyl-mcp = "pterodactyl_mcp.server:main"
+pelican-mcp = "pelican_mcp.server:main"
 
 [tool.hatch.version]
-path = "pterodactyl_mcp/__init__.py"
+path = "pelican_mcp/__init__.py"
 
 [tool.hatch.build.targets.wheel]
-packages = ["pterodactyl_mcp"]
+packages = ["pelican_mcp"]
 
 [tool.hatch.build.targets.sdist]
 include = [
-    "pterodactyl_mcp",
+    "pelican_mcp",
     "README.md",
     "LICENSE",
     "skill.md",

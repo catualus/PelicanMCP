@@ -3,41 +3,46 @@ startCommand:
   configSchema:
     type: object
     required:
-      - PANEL_URL
-      - PANEL_TOKEN
+      - PELICAN_URL
+      - PELICAN_TOKEN
     properties:
-      PANEL_URL:
+      PELICAN_URL:
         type: string
-        title: Pterodactyl Panel URL
-        description: "Base URL of your Pterodactyl panel (no trailing slash). Example: https://panel.example.com"
-      PANEL_TOKEN:
+        title: Pelican Panel URL
+        description: "Base URL of your Pelican panel (no trailing slash). Example: https://panel.example.com"
+      PELICAN_TOKEN:
         type: string
         title: Application API Key
-        description: "Pterodactyl Application API key (admin). Usually starts with 'ptla_'."
-      PANEL_TIMEOUT:
+        description: "Pelican Application API key (admin). Usually starts with 'papp_'."
+      PELICAN_CLIENT_TOKEN:
+        type: string
+        title: Client (Account) API Key
+        description: "Pelican Account API key (client scope). Usually starts with 'pacc_'. Optional; enables the pelican_client_* tools."
+      PELICAN_TIMEOUT:
         type: number
         title: Request Timeout (seconds)
         description: "HTTP request timeout in seconds."
         default: 30
-      PANEL_VERIFY_SSL:
+      PELICAN_VERIFY_SSL:
         type: boolean
         title: Verify SSL
         description: "Whether to verify the panel's TLS certificate."
         default: true
-      PANEL_USER_AGENT:
+      PELICAN_USER_AGENT:
         type: string
         title: User Agent
         description: "Custom User-Agent header sent with requests."
-        default: "PterodactylMCP/0.1"
+        default: "PelicanMCP/0.1"
   commandFunction: |
     (config) => ({
-      command: "pterodactyl-mcp",
+      command: "pelican-mcp",
       args: ["--transport", "stdio", "--no-banner"],
       env: {
-        PANEL_URL: config.PANEL_URL,
-        PANEL_TOKEN: config.PANEL_TOKEN,
-        PANEL_TIMEOUT: String(config.PANEL_TIMEOUT ?? 30),
-        PANEL_VERIFY_SSL: String(config.PANEL_VERIFY_SSL ?? true),
-        PANEL_USER_AGENT: config.PANEL_USER_AGENT ?? "PterodactylMCP/0.1"
+        PELICAN_URL: config.PELICAN_URL,
+        PELICAN_TOKEN: config.PELICAN_TOKEN,
+        PELICAN_CLIENT_TOKEN: config.PELICAN_CLIENT_TOKEN ?? "",
+        PELICAN_TIMEOUT: String(config.PELICAN_TIMEOUT ?? 30),
+        PELICAN_VERIFY_SSL: String(config.PELICAN_VERIFY_SSL ?? true),
+        PELICAN_USER_AGENT: config.PELICAN_USER_AGENT ?? "PelicanMCP/0.1"
       }
     })
