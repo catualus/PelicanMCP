@@ -73,3 +73,43 @@ def test_from_env_missing_both_tokens(monkeypatch, tmp_path):
     monkeypatch.delenv("PANEL_CLIENT_TOKEN", raising=False)
     with pytest.raises(ValueError, match="PELICAN_TOKEN"):
         PelicanConfig.from_env()
+
+
+class TestBodyCoercion:
+    """A JSON-encoded string body must be parsed back into an object.
+
+    Some MCP clients serialise object arguments to a string; sending that
+    straight to httpx produces a quoted literal and the API reports every
+    field as missing.
+    """
+
+    def test_json_string_becomes_object(self):
+        from pelican_mcp.client import _coerce_body
+
+        assert _coerce_body('{"database": "darkrp", "host": 2}') == {"database": "darkrp", "host": 2}
+
+    def test_json_array_string_becomes_list(self):
+        from pelican_mcp.client import _coerce_body
+
+        assert _coerce_body('[1, 2]') == [1, 2]
+
+    def test_dict_passes_through(self):
+        from pelican_mcp.client import _coerce_body
+
+        body = {"database": "darkrp"}
+        assert _coerce_body(body) is body
+
+    def test_plain_string_is_untouched(self):
+        from pelican_mcp.client import _coerce_body
+
+        assert _coerce_body("not json") == "not json"
+
+    def test_malformed_json_is_untouched(self):
+        from pelican_mcp.client import _coerce_body
+
+        assert _coerce_body('{"broken": ') == '{"broken": '
+
+    def test_none_passes_through(self):
+        from pelican_mcp.client import _coerce_body
+
+        assert _coerce_body(None) is None

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import os
 from dataclasses import dataclass
 from pathlib import Path
@@ -7,6 +8,25 @@ from typing import Any
 
 import httpx
 from dotenv import load_dotenv
+
+
+def _coerce_body(body: Any) -> Any:
+    """Accept a request body that arrived as a JSON-encoded string.
+
+    Some MCP clients serialise object arguments to a JSON string before sending
+    them. Handing that to httpx's ``json=`` would transmit a quoted string
+    literal rather than an object, and Laravel then reports every field as
+    missing — a 422 that looks like a caller error but isn't. Parse it back
+    first; anything that is already an object passes through untouched.
+    """
+    if isinstance(body, str):
+        stripped = body.strip()
+        if stripped.startswith(("{", "[")):
+            try:
+                return json.loads(stripped)
+            except json.JSONDecodeError:
+                return body
+    return body
 
 
 def _parse_bool(value: str | None, *, default: bool) -> bool:
@@ -78,6 +98,7 @@ class PelicanClient:
         if not bearer:
             raise ValueError("PelicanClient requires an API token")
         self._base_url = config.panel_url.rstrip("/")
+        self._verify_ssl = config.verify_ssl
         # Pelican authenticates the API with Laravel Sanctum bearer tokens and does not
         # use a custom vendor media type (unlike Pterodactyl's vnd.pterodactyl header).
         # Plain application/json is correct.
@@ -98,6 +119,11 @@ class PelicanClient:
         """Panel base URL (no trailing slash), e.g. https://panel.example.com."""
         return self._base_url
 
+    @property
+    def verify_ssl(self) -> bool:
+        """Whether TLS verification is enabled (mirrors the httpx client's setting)."""
+        return self._verify_ssl
+
     def request(
         self,
         method: str,
@@ -106,7 +132,7 @@ class PelicanClient:
         query: dict[str, Any] | None = None,
         body: Any | None = None,
     ) -> Any:
-        resp = self._http.request(method, path, params=query, json=body)
+        resp = self._http.request(method, path, params=query, json=_coerce_body(body))
         if resp.status_code == 204:
             return {"status": 204}
 
