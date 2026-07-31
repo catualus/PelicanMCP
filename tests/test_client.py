@@ -3,12 +3,9 @@ import pytest
 from pelican_mcp.client import PelicanConfig
 
 
-def test_from_env_happy_path(monkeypatch, tmp_path):
-    monkeypatch.chdir(tmp_path)
+def test_from_env_happy_path(monkeypatch):
     monkeypatch.setenv("PELICAN_URL", "https://panel.example.com/")
     monkeypatch.setenv("PELICAN_TOKEN", "papp_abc")
-    monkeypatch.delenv("PELICAN_CLIENT_TOKEN", raising=False)
-    monkeypatch.delenv("PANEL_CLIENT_TOKEN", raising=False)
     monkeypatch.setenv("PELICAN_TIMEOUT", "45")
     monkeypatch.setenv("PELICAN_VERIFY_SSL", "false")
 
@@ -20,11 +17,8 @@ def test_from_env_happy_path(monkeypatch, tmp_path):
     assert cfg.verify_ssl is False
 
 
-def test_from_env_parses_client_token(monkeypatch, tmp_path):
-    monkeypatch.chdir(tmp_path)
+def test_from_env_parses_client_token(monkeypatch):
     monkeypatch.setenv("PELICAN_URL", "https://panel.example.com")
-    monkeypatch.delenv("PELICAN_TOKEN", raising=False)
-    monkeypatch.delenv("PANEL_TOKEN", raising=False)
     monkeypatch.setenv("PELICAN_CLIENT_TOKEN", "pacc_xyz")
 
     cfg = PelicanConfig.from_env()
@@ -32,11 +26,8 @@ def test_from_env_parses_client_token(monkeypatch, tmp_path):
     assert cfg.panel_client_token == "pacc_xyz"
 
 
-def test_from_env_accepts_legacy_panel_names(monkeypatch, tmp_path):
+def test_from_env_accepts_legacy_panel_names(monkeypatch):
     # The generic PANEL_* names still work (eases migrating a Pterodactyl-MCP config).
-    monkeypatch.chdir(tmp_path)
-    monkeypatch.delenv("PELICAN_URL", raising=False)
-    monkeypatch.delenv("PELICAN_TOKEN", raising=False)
     monkeypatch.setenv("PANEL_URL", "https://panel.example.com")
     monkeypatch.setenv("PANEL_TOKEN", "papp_legacy")
 
@@ -45,8 +36,7 @@ def test_from_env_accepts_legacy_panel_names(monkeypatch, tmp_path):
     assert cfg.panel_token == "papp_legacy"
 
 
-def test_pelican_names_take_precedence(monkeypatch, tmp_path):
-    monkeypatch.chdir(tmp_path)
+def test_pelican_names_take_precedence(monkeypatch):
     monkeypatch.setenv("PANEL_URL", "https://old.example.com")
     monkeypatch.setenv("PELICAN_URL", "https://new.example.com")
     monkeypatch.setenv("PELICAN_TOKEN", "papp_abc")
@@ -55,22 +45,14 @@ def test_pelican_names_take_precedence(monkeypatch, tmp_path):
     assert cfg.panel_url == "https://new.example.com"
 
 
-def test_from_env_missing_url(monkeypatch, tmp_path):
-    monkeypatch.chdir(tmp_path)
-    monkeypatch.delenv("PELICAN_URL", raising=False)
-    monkeypatch.delenv("PANEL_URL", raising=False)
+def test_from_env_missing_url(monkeypatch):
     monkeypatch.setenv("PELICAN_TOKEN", "papp_abc")
     with pytest.raises(ValueError, match="PELICAN_URL"):
         PelicanConfig.from_env()
 
 
-def test_from_env_missing_both_tokens(monkeypatch, tmp_path):
-    monkeypatch.chdir(tmp_path)
+def test_from_env_missing_both_tokens(monkeypatch):
     monkeypatch.setenv("PELICAN_URL", "https://panel.example.com")
-    monkeypatch.delenv("PELICAN_TOKEN", raising=False)
-    monkeypatch.delenv("PELICAN_CLIENT_TOKEN", raising=False)
-    monkeypatch.delenv("PANEL_TOKEN", raising=False)
-    monkeypatch.delenv("PANEL_CLIENT_TOKEN", raising=False)
     with pytest.raises(ValueError, match="PELICAN_TOKEN"):
         PelicanConfig.from_env()
 
@@ -113,3 +95,40 @@ class TestBodyCoercion:
         from pelican_mcp.client import _coerce_body
 
         assert _coerce_body(None) is None
+
+
+class TestQueryCoercion:
+    """Query params arrive as JSON strings for the same reason bodies do."""
+
+    def test_json_string_becomes_dict(self):
+        from pelican_mcp.client import _coerce_query
+
+        assert _coerce_query('{"directory": "/garrysmod/addons"}') == {"directory": "/garrysmod/addons"}
+
+    def test_dict_passes_through(self):
+        from pelican_mcp.client import _coerce_query
+
+        q = {"page": 2}
+        assert _coerce_query(q) is q
+
+    def test_none_and_blank_are_none(self):
+        from pelican_mcp.client import _coerce_query
+
+        assert _coerce_query(None) is None
+        assert _coerce_query("   ") is None
+
+    def test_non_object_json_is_rejected(self):
+        import pytest
+
+        from pelican_mcp.client import _coerce_query
+
+        with pytest.raises(ValueError, match="must decode to a JSON object"):
+            _coerce_query("[1, 2]")
+
+    def test_malformed_json_is_rejected_with_context(self):
+        import pytest
+
+        from pelican_mcp.client import _coerce_query
+
+        with pytest.raises(ValueError, match="could not parse"):
+            _coerce_query("{not json")

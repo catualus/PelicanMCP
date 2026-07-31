@@ -29,6 +29,33 @@ def _coerce_body(body: Any) -> Any:
     return body
 
 
+def _coerce_query(query: Any) -> dict[str, Any] | None:
+    """Same as :func:`_coerce_body`, but for query parameters.
+
+    Query strings must end up as a mapping for httpx's ``params=``, so a string
+    that decodes to something else (a list, a bare scalar) is an error worth
+    naming rather than passing along to produce a confusing request.
+    """
+    if query is None:
+        return None
+    if isinstance(query, str):
+        stripped = query.strip()
+        if not stripped:
+            return None
+        try:
+            decoded = json.loads(stripped)
+        except json.JSONDecodeError as exc:
+            raise ValueError(
+                f"query must be a JSON object or a mapping; could not parse {query!r} ({exc})"
+            ) from exc
+        if not isinstance(decoded, dict):
+            raise ValueError(f"query must decode to a JSON object, got {type(decoded).__name__}")
+        return decoded
+    if isinstance(query, dict):
+        return query
+    raise ValueError(f"query must be a mapping or a JSON object string, got {type(query).__name__}")
+
+
 def _parse_bool(value: str | None, *, default: bool) -> bool:
     if value is None:
         return default
@@ -129,10 +156,10 @@ class PelicanClient:
         method: str,
         path: str,
         *,
-        query: dict[str, Any] | None = None,
+        query: Any = None,
         body: Any | None = None,
     ) -> Any:
-        resp = self._http.request(method, path, params=query, json=_coerce_body(body))
+        resp = self._http.request(method, path, params=_coerce_query(query), json=_coerce_body(body))
         if resp.status_code == 204:
             return {"status": 204}
 
@@ -151,7 +178,7 @@ class PelicanClient:
         method: str,
         path: str,
         *,
-        query: dict[str, Any] | None = None,
+        query: Any = None,
         content: bytes | str,
         content_type: str = "text/plain",
     ) -> Any:
@@ -163,7 +190,7 @@ class PelicanClient:
         resp = self._http.request(
             method,
             path,
-            params=query,
+            params=_coerce_query(query),
             content=content,
             headers={"Content-Type": content_type},
         )
@@ -180,9 +207,9 @@ class PelicanClient:
 
         return payload
 
-    def fetch_bytes(self, path: str, *, query: dict[str, Any] | None = None) -> bytes:
+    def fetch_bytes(self, path: str, *, query: Any = None) -> bytes:
         """GET a path and return the raw response bytes (for file downloads)."""
-        resp = self._http.request("GET", path, params=query)
+        resp = self._http.request("GET", path, params=_coerce_query(query))
         if resp.status_code >= 400:
             try:
                 payload: Any = resp.json()

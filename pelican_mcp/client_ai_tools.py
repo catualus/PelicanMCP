@@ -3,10 +3,12 @@ from __future__ import annotations
 import asyncio
 import json
 import re
+import ssl
 from collections.abc import Callable
 from typing import Any, Literal
 from urllib.parse import urlsplit
 
+import certifi
 from fastmcp import FastMCP
 
 from .client import PelicanClient
@@ -15,6 +17,25 @@ PowerSignal = Literal["start", "stop", "restart", "kill"]
 
 _ANSI_RE = re.compile(r"\x1b\[[0-9;]*m")
 _MAX_TAIL_SECONDS = 60.0
+
+
+def _ws_ssl_context(client: PelicanClient, socket: str) -> ssl.SSLContext | None:
+    """SSL context for the console websocket.
+
+    ``websockets.connect`` with no ``ssl=`` falls back to ``ssl.create_default_context()``,
+    which loads the OS trust store. On some machines that chain-builds a Let's Encrypt
+    cert to the long-expired DST Root CA X3 and fails with "certificate has expired",
+    even though the leaf is valid. httpx (the panel API path) uses certifi and works —
+    so we build the websocket context from certifi too, keeping both paths consistent.
+    Returns ``None`` for plaintext ``ws://`` (no TLS).
+    """
+    if not socket.lower().startswith("wss://"):
+        return None
+    context = ssl.create_default_context(cafile=certifi.where())
+    if not getattr(client, "verify_ssl", True):
+        context.check_hostname = False
+        context.verify_mode = ssl.CERT_NONE
+    return context
 
 
 def register_client_ai_tools(mcp: FastMCP, client_factory: Callable[[], PelicanClient]) -> None:
@@ -151,11 +172,12 @@ async def read_console(
                 if event == "jwt error":
                     raise RuntimeError(f"Console websocket auth failed: {msg.get('args')}")
 
+    ssl_context = _ws_ssl_context(client, socket)
     try:
-        connect = websockets.connect(socket, origin=origin, max_size=None)
+        connect = websockets.connect(socket, origin=origin, max_size=None, ssl=ssl_context)
     except TypeError:  # older websockets: origin passed via extra_headers
         connect = websockets.connect(
-            socket, extra_headers={"Origin": origin}, max_size=None
+            socket, extra_headers={"Origin": origin}, max_size=None, ssl=ssl_context
         )
 
     async with connect as ws:

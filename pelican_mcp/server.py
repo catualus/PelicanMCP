@@ -21,6 +21,12 @@ from .routes import APPLICATION_ROUTES, CLIENT_ROUTES
 
 PathParam = str | int
 
+# Query parameters accept either a mapping or a JSON object string. The string form
+# exists because the dynamically-generated route tools below publish an empty JSON
+# schema, leaving clients nothing to serialise against; PelicanClient._coerce_query
+# parses it back before the request goes out.
+QueryParam = dict[str, Any] | str | None
+
 mcp = FastMCP("Pelican Panel API (Application + Client)")
 
 
@@ -134,7 +140,11 @@ def _register_route_tools(
                     "query",
                     kind=inspect.Parameter.POSITIONAL_OR_KEYWORD,
                     default=None,
-                    annotation=dict[str, Any] | None,
+                    # `| str` because these dynamically-built tools expose an empty
+                    # JSON schema, so a client has no type to serialise against and
+                    # sends the object as a raw string. Rejecting it here would fail
+                    # before _coerce_query ever gets to parse it.
+                    annotation=QueryParam,
                 )
             )
             parameters.append(
@@ -148,7 +158,7 @@ def _register_route_tools(
             _tool.__signature__ = inspect.Signature(parameters)
             _tool.__annotations__ = {
                 **{p: PathParam for p in path_params},
-                "query": dict[str, Any] | None,
+                "query": QueryParam,
                 "body": Any | None,
                 "return": Any,
             }
@@ -209,7 +219,7 @@ def pelican_client_list_endpoints() -> list[dict[str, str]]:
 def pelican_app_request(
     method: Literal["GET", "POST", "PUT", "PATCH", "DELETE"],
     path: str,
-    query: dict[str, Any] | None = None,
+    query: QueryParam = None,
     body: Any | None = None,
 ) -> Any:
     if not path.startswith("/api/application/"):
@@ -221,7 +231,7 @@ def pelican_app_request(
 def pelican_client_request(
     method: Literal["GET", "POST", "PUT", "PATCH", "DELETE"],
     path: str,
-    query: dict[str, Any] | None = None,
+    query: QueryParam = None,
     body: Any | None = None,
 ) -> Any:
     if not path.startswith("/api/client"):
