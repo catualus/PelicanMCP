@@ -27,6 +27,10 @@ PathParam = str | int
 # parses it back before the request goes out.
 QueryParam = dict[str, Any] | str | None
 
+# Endpoints whose body is raw content rather than a JSON envelope. These must go
+# through PelicanClient.send_raw; json= would quote and escape the payload.
+RAW_BODY_PATH_RE = re.compile(r"/files/write$")
+
 mcp = FastMCP("Pelican Panel API (Application + Client)")
 
 
@@ -122,7 +126,17 @@ def _register_route_tools(
                     extra = ", ".join(sorted(kwargs.keys()))
                     raise ValueError(f"Unexpected parameters: {extra}")
 
-                return client_factory().request(method, resolved_path, query=query, body=body)
+                client = client_factory()
+                if RAW_BODY_PATH_RE.search(template_path):
+                    # files/write takes the literal file content as the request body.
+                    # Sending it through json= wraps it in quotes and escapes newlines,
+                    # which silently writes a corrupt file — the daemon reports success
+                    # and the damage only shows up when the server next parses it.
+                    if body is None:
+                        raise ValueError(f"{template_path} requires body= (the file content)")
+                    return client.send_raw(method, resolved_path, query=query, content=body)
+
+                return client.request(method, resolved_path, query=query, body=body)
 
             _tool.__name__ = name
             _tool.__doc__ = f"{method} {template_path}"
